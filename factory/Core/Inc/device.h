@@ -42,7 +42,7 @@ void print_frame(frame_parse_t *frame);
   do {                                                   \
     sprintf((char *)print_buf, fmt, ##args);             \
     uart_write((uint8_t *)print_buf, strlen(print_buf)); \
-    LL_mDelay(strlen(print_buf));                        \
+    uart_tx_poll();                                      \
   } while (0)
 
 #ifdef __cplusplus

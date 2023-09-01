@@ -1,5 +1,6 @@
 #include "device.h"
 
+#include "common.h"
 #include "main.h"
 
 #define UART_TX_RING_SIZE 1280
@@ -81,9 +82,9 @@ void uart_dmarx_done_isr(void) {
 
   recv_size = UART_DMARX_BUF_SIZE - uart_dev.last_dmarx_size;
 
-  __disable_irq();
+  disable_global_irq();
   ring_push_mult(&uart_rx_ring, &uart_dmarx_buf[uart_dev.last_dmarx_size], recv_size);
-  __enable_irq();
+  enable_global_irq();
 
   uart_dev.last_dmarx_size = 0;
 }
@@ -100,9 +101,9 @@ void uart_dmarx_part_done_isr(void) {
   recv_total_size = UART_DMARX_BUF_SIZE - LL_DMA_GetDataLength(DMA2, LL_DMA_CHANNEL_7);
   recv_size = recv_total_size - uart_dev.last_dmarx_size;
 
-  __disable_irq();
+  disable_global_irq();
   ring_push_mult(&uart_rx_ring, &uart_dmarx_buf[uart_dev.last_dmarx_size], recv_size);
-  __enable_irq();
+  enable_global_irq();
 
   uart_dev.last_dmarx_size = recv_total_size;
 }
@@ -127,9 +128,9 @@ void uart_tx_poll(void) {
     return;
   }
 
-  __disable_irq();
+  disable_global_irq();
   size = ring_pop_mult(&uart_tx_ring, &uart_dmatx_buf, UART_DMATX_BUF_SIZE);
-  __enable_irq();
+  enable_global_irq();
 
   uart_dev.status = 1;
 
@@ -149,9 +150,9 @@ uint16_t uart_read(uint8_t *buf, uint16_t size) {
     return 0;
   }
 
-  __disable_irq();
+  disable_global_irq();
   ok = ring_pop_mult(&uart_rx_ring, buf, size);
-  __enable_irq();
+  enable_global_irq();
 
   return ok;
 }
@@ -163,9 +164,9 @@ uint16_t uart_write(const uint8_t *buf, uint16_t size) {
     return 0;
   }
 
-  __disable_irq();
+  disable_global_irq();
   ok = ring_push_mult(&uart_tx_ring, buf, size);
-  __enable_irq();
+  enable_global_irq();
 
   return ok;
 }
@@ -272,5 +273,5 @@ void uart_frame_parse(void) {
 
 void print_frame(frame_parse_t *frame) {
   uart_write(frame->data, frame->length);
-  LL_mDelay(frame->length);
+  uart_tx_poll();
 }

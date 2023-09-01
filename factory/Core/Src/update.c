@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "common.h"
 #include "main.h"
 
 typedef void (*pFunction)(void);
@@ -203,6 +204,7 @@ inline __attribute__((always_inline)) void start_boot_app(uint32_t boot_addr) {
   JumpAddress = *(__IO uint32_t *)(boot_addr + 4);
   JumpToApplication = (pFunction)JumpAddress;
   if ((MspAddress & 0xFFF00000) != 0x10000000 && (MspAddress & 0xFFF00000) != 0x20000000) {
+    LL_mDelay(100);
     NVIC_SystemReset();
   }
   __set_CONTROL(0);
@@ -213,7 +215,7 @@ inline __attribute__((always_inline)) void start_boot_app(uint32_t boot_addr) {
 void boot_param_check_upgrade(void) {
   BOOT_PARAM param;
 
-  __disable_irq();
+  disable_global_irq();
 
   STMFLASH_Read(ADDR_BASE_PARAM, (uint64_t *)&param, boot_param_size64);
 
@@ -227,11 +229,12 @@ void boot_param_check_upgrade(void) {
       boot_param_update(ADDR_BASE_PARAM, &param);
       boot_param_update(ADDR_BASE_PARAM_BAK, &param);
       uart_printf("device reboot\n");
+      LL_mDelay(100);
       NVIC_SystemReset();
     }
   }
 
-  __enable_irq();
+  enable_global_irq();
 }
 
 void iap_update(frame_parse_t *frame) {
@@ -245,9 +248,9 @@ void iap_update(frame_parse_t *frame) {
   switch (iap_up.status) {
     case IAP_START: {
       if (frame->id == FRAME_TYPE_BEGIN) {
-        __disable_irq();
+        disable_global_irq();
         STMFLASH_Read(ADDR_BASE_PARAM, (uint64_t *)&param, boot_param_size64);
-        __enable_irq();
+        enable_global_irq();
         if (frame->length != 4) {
           break;
         }
@@ -274,10 +277,10 @@ void iap_update(frame_parse_t *frame) {
           uart_printf("iap data length is too large!\n");
           iap_up.status = IAP_START;
         }
-        __disable_irq();
+        disable_global_irq();
         STMFLASH_Write(iap_up.addr + iap_up.wr_cnt, (uint64_t *)(frame->data), frame->length / 8);
         iap_up.crc = uiCRC32_MPEG2(&iap_up.crc, frame->data, frame->length);
-        __enable_irq();
+        enable_global_irq();
         iap_up.wr_cnt += frame->length;
         uart_printf("trans ok\n");
       } else if (frame->id == FRAME_TYPE_END) {
@@ -293,13 +296,14 @@ void iap_update(frame_parse_t *frame) {
         }
         param.app_boot = BOOT_FACTORY;
         param.app_status = STATUS_VERIFY;
-        __disable_irq();
+        disable_global_irq();
         boot_param_update(ADDR_BASE_PARAM, &param);
         boot_param_update(ADDR_BASE_PARAM_BAK, &param);
-        __enable_irq();
+        enable_global_irq();
         iap_up.enabled = 0;
         iap_up.status = IAP_START;
         uart_printf("upgrade completed\n");
+        LL_mDelay(100);
         NVIC_SystemReset();
       } else {
         ;
@@ -314,11 +318,12 @@ void reboot_for_update(void) {
       .app_status = STATUS_UPDATED,
   };
 
-  __disable_irq();
+  disable_global_irq();
   boot_param_update(ADDR_BASE_PARAM, &param);
   boot_param_update(ADDR_BASE_PARAM_BAK, &param);
-  __enable_irq();
+  enable_global_irq();
 
+  LL_mDelay(100);
   NVIC_SystemReset();
 }
 
@@ -329,9 +334,9 @@ void back_to_app(void) {
     return;
   }
 
-  __disable_irq();
+  disable_global_irq();
   STMFLASH_Read(ADDR_BASE_PARAM, (uint64_t *)&param, boot_param_size64);
-  __enable_irq();
+  enable_global_irq();
 
   if (param.app_boot != BOOT_APP || param.app_status != STATUS_UPDATED) {
     return;
@@ -340,11 +345,12 @@ void back_to_app(void) {
   param.app_boot = BOOT_APP;
   param.app_status = STATUS_NORMAL;
 
-  __disable_irq();
+  disable_global_irq();
   boot_param_update(ADDR_BASE_PARAM, &param);
   boot_param_update(ADDR_BASE_PARAM_BAK, &param);
-  __enable_irq();
+  enable_global_irq();
 
+  LL_mDelay(100);
   NVIC_SystemReset();
 }
 

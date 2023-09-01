@@ -138,6 +138,7 @@
       target_reset_script="Reset();"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
     <folder Name="Core">
+      <file file_name="../Core/Src/common.c" />
       <file file_name="../Core/Src/device.c" />
       <file file_name="../Core/Src/dma.c" />
       <file file_name="../Core/Src/gpio.c" />
