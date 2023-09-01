@@ -71,9 +71,9 @@
  </TraceWindow>
  <Watch1>
   <Watches active="1" update="Never">
-   <Watchpoint expression="boot_param_crcdatalen" name="boot_param_crcdatalen" radix="16" linenumber="15" filename="bootloader/Core/Src/update.c"/>
-   <Watchpoint expression="boot_param_default" name="boot_param_default" radix="-1" linenumber="16" filename="bootloader/Core/Src/update.c"/>
-   <Watchpoint expression="crc" name="crc" radix="-1" linenumber="26" filename="bootloader/Core/Src/update.c"/>
+   <Watchpoint expression="boot_param_crcdatalen" name="boot_param_crcdatalen" radix="16" linenumber="14" filename="bootloader/Core/Src/update.c"/>
+   <Watchpoint expression="boot_param_default" name="boot_param_default" radix="-1" linenumber="15" filename="bootloader/Core/Src/update.c"/>
+   <Watchpoint expression="crc" name="crc" radix="-1" linenumber="83" filename="bootloader/Core/Src/update.c"/>
   </Watches>
  </Watch1>
  <Watch2>

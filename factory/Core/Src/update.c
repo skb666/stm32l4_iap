@@ -2,7 +2,6 @@
 
 #include <stdio.h>
 
-#include "crc.h"
 #include "main.h"
 
 typedef void (*pFunction)(void);
@@ -17,15 +16,16 @@ typedef enum {
 
 typedef struct {
   __IO uint8_t enabled;
-  __IO uint8_t status;
-  __IO uint32_t addr;
-  __IO uint32_t filesize;
-  __IO uint32_t wr_cnt;
+  uint8_t status;
+  uint32_t addr;
+  uint32_t filesize;
+  uint32_t wr_cnt;
+  uint32_t crc;
 } IAP_UP;
 
 static IAP_UP iap_up = {
-  .enabled = 1,
-  .status = IAP_START,
+    .enabled = 1,
+    .status = IAP_START,
 };
 
 const uint32_t boot_param_size32 = sizeof(BOOT_PARAM) / 4 + (sizeof(BOOT_PARAM) % 4 ? 1 : 0);
@@ -38,10 +38,68 @@ const BOOT_PARAM boot_param_default = {
     .crc_val = 0xc704dd7b,
 };
 
+/* 常用CRC32校验算法 */
+static uint32_t uiReflect(uint32_t uiData, uint8_t ucLength) {
+  uint32_t uiMask = 1 << (ucLength - 1), uiMaskRef = 1, uiDataReturn = 0;
+
+  for (; uiMask; uiMask >>= 1) {
+    if (uiData & uiMask)
+      uiDataReturn |= uiMaskRef;
+
+    uiMaskRef <<= 1;
+  }
+
+  return uiDataReturn;
+}
+
+uint32_t uiCRC32(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
+  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
+  uint8_t ucMask = 0;
+
+  if (puiInitCRC != NULL)
+    uiInputCRC = *puiInitCRC;
+
+  uiPolynomial = uiReflect(uiPolynomial, 32);
+
+  for (i = 0; i < uiLength; ++i) {
+    uiInputCRC ^= *pucDataBuff++;
+
+    for (ucMask = 1; ucMask; ucMask <<= 1) {
+      if (uiInputCRC & 1)
+        uiInputCRC = (uiInputCRC >> 1) ^ uiPolynomial;
+      else
+        uiInputCRC >>= 1;
+    }
+  }
+
+  return ~uiInputCRC;
+}
+/* CRC32-MPEG2.0校验算法 */
+uint32_t uiCRC32_MPEG2(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
+  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
+  uint8_t ucMask = 0;
+
+  if (puiInitCRC != NULL)
+    uiInputCRC = *puiInitCRC;
+
+  for (i = 0; i < uiLength; ++i) {
+    uiInputCRC ^= (uint32_t)(*pucDataBuff++) << 24;
+
+    for (ucMask = 1; ucMask; ucMask <<= 1) {
+      if (uiInputCRC & 0x80000000)
+        uiInputCRC = (uiInputCRC << 1) ^ uiPolynomial;
+      else
+        uiInputCRC <<= 1;
+    }
+  }
+
+  return uiInputCRC;
+}
+
 static uint32_t param_crc_calc(const BOOT_PARAM *param) {
   uint32_t crc = 0;
 
-  crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)param, boot_param_crcdatalen);
+  crc = uiCRC32_MPEG2(NULL, (uint8_t *)param, boot_param_crcdatalen * 4);
 
   return crc;
 }
@@ -200,6 +258,7 @@ void iap_update(frame_parse_t *frame) {
         if (iap_up.filesize % 8) {
           break;
         }
+        iap_up.crc = 0xFFFFFFFF;
         iap_up.addr = ADDR_BASE_APP;
         iap_up.wr_cnt = 0;
         iap_up.status = IAP_TRANS;
@@ -211,13 +270,23 @@ void iap_update(frame_parse_t *frame) {
           uart_printf("iap data length error!\n");
           iap_up.status = IAP_START;
         }
+        if (iap_up.wr_cnt >= PART_SIZE_APP) {
+          uart_printf("iap data length is too large!\n");
+          iap_up.status = IAP_START;
+        }
         __disable_irq();
         STMFLASH_Write(iap_up.addr + iap_up.wr_cnt, (uint64_t *)(frame->data), frame->length / 8);
+        iap_up.crc = uiCRC32_MPEG2(&iap_up.crc, frame->data, frame->length);
         __enable_irq();
         iap_up.wr_cnt += frame->length;
         uart_printf("trans ok\n");
       } else if (frame->id == FRAME_TYPE_END) {
         if (iap_up.wr_cnt != iap_up.filesize) {
+          iap_up.status = IAP_START;
+          uart_printf("upgrade failed\n");
+          break;
+        }
+        if ((frame->length != 4) || (iap_up.crc != *(uint32_t *)frame->data)) {
           iap_up.status = IAP_START;
           uart_printf("upgrade failed\n");
           break;
@@ -241,8 +310,8 @@ void iap_update(frame_parse_t *frame) {
 
 void reboot_for_update(void) {
   BOOT_PARAM param = {
-    .app_boot = BOOT_APP,
-    .app_status = STATUS_UPDATED,
+      .app_boot = BOOT_APP,
+      .app_status = STATUS_UPDATED,
   };
 
   __disable_irq();
