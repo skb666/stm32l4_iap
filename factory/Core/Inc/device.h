@@ -29,6 +29,7 @@ void uart_dmarx_done_isr(void);
 void uart_dmarx_part_done_isr(void);
 void uart_dmatx_done_isr(void);
 
+void uart_wait_tx(void);
 void uart_tx_poll(void);
 uint16_t uart_read(uint8_t *buf, uint16_t size);
 uint16_t uart_write(const uint8_t *buf, uint16_t size);

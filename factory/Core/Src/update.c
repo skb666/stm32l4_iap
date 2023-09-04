@@ -204,7 +204,7 @@ inline __attribute__((always_inline)) void start_boot_app(uint32_t boot_addr) {
   JumpAddress = *(__IO uint32_t *)(boot_addr + 4);
   JumpToApplication = (pFunction)JumpAddress;
   if ((MspAddress & 0xFFF00000) != 0x10000000 && (MspAddress & 0xFFF00000) != 0x20000000) {
-    LL_mDelay(100);
+    uart_wait_tx();
     NVIC_SystemReset();
   }
   __set_CONTROL(0);
@@ -229,7 +229,7 @@ void boot_param_check_upgrade(void) {
       boot_param_update(ADDR_BASE_PARAM, &param);
       boot_param_update(ADDR_BASE_PARAM_BAK, &param);
       uart_printf("device reboot\n");
-      LL_mDelay(100);
+      uart_wait_tx();
       NVIC_SystemReset();
     }
   }
@@ -303,7 +303,7 @@ void iap_update(frame_parse_t *frame) {
         iap_up.enabled = 0;
         iap_up.status = IAP_START;
         uart_printf("upgrade completed\n");
-        LL_mDelay(100);
+        uart_wait_tx();
         NVIC_SystemReset();
       } else {
         ;
@@ -323,7 +323,7 @@ void reboot_for_update(void) {
   boot_param_update(ADDR_BASE_PARAM_BAK, &param);
   enable_global_irq();
 
-  LL_mDelay(100);
+  uart_wait_tx();
   NVIC_SystemReset();
 }
 
@@ -350,7 +350,7 @@ void back_to_app(void) {
   boot_param_update(ADDR_BASE_PARAM_BAK, &param);
   enable_global_irq();
 
-  LL_mDelay(100);
+  uart_wait_tx();
   NVIC_SystemReset();
 }
 

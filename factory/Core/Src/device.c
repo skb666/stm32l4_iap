@@ -117,6 +117,10 @@ void uart_dmatx_done_isr(void) {
   uart_dev.status = 0; /* DMA发送空闲 */
 }
 
+void uart_wait_tx(void) {
+  while (uart_dev.status);
+}
+
 void uart_tx_poll(void) {
   uint16_t size = 0;
 
