@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "crc.h"
 #include "main.h"
 
 typedef void (*pFunction)(void);
@@ -11,7 +12,7 @@ pFunction JumpToApplication;
 
 const uint32_t boot_param_size32 = sizeof(BOOT_PARAM) / 4 + (sizeof(BOOT_PARAM) % 4 ? 1 : 0);
 const uint32_t boot_param_size64 = sizeof(BOOT_PARAM) / 8 + (sizeof(BOOT_PARAM) % 8 ? 1 : 0);
-const uint32_t boot_param_crcdatalen = boot_param_size32 - 1;
+const uint32_t boot_param_crcdatalen = 4 * (boot_param_size32 - 1);
 const BOOT_PARAM boot_param_default = {
     .app_boot = BOOT_FACTORY,
     .app_status = STATUS_ERROR,
@@ -19,68 +20,10 @@ const BOOT_PARAM boot_param_default = {
     .crc_val = 0xc704dd7b,
 };
 
-/* 常用CRC32校验算法 */
-static uint32_t uiReflect(uint32_t uiData, uint8_t ucLength) {
-  uint32_t uiMask = 1 << (ucLength - 1), uiMaskRef = 1, uiDataReturn = 0;
-
-  for (; uiMask; uiMask >>= 1) {
-    if (uiData & uiMask)
-      uiDataReturn |= uiMaskRef;
-
-    uiMaskRef <<= 1;
-  }
-
-  return uiDataReturn;
-}
-
-uint32_t uiCRC32(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
-  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
-  uint8_t ucMask = 0;
-
-  if (puiInitCRC != NULL)
-    uiInputCRC = *puiInitCRC;
-
-  uiPolynomial = uiReflect(uiPolynomial, 32);
-
-  for (i = 0; i < uiLength; ++i) {
-    uiInputCRC ^= *pucDataBuff++;
-
-    for (ucMask = 1; ucMask; ucMask <<= 1) {
-      if (uiInputCRC & 1)
-        uiInputCRC = (uiInputCRC >> 1) ^ uiPolynomial;
-      else
-        uiInputCRC >>= 1;
-    }
-  }
-
-  return ~uiInputCRC;
-}
-/* CRC32-MPEG2.0校验算法 */
-uint32_t uiCRC32_MPEG2(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
-  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
-  uint8_t ucMask = 0;
-
-  if (puiInitCRC != NULL)
-    uiInputCRC = *puiInitCRC;
-
-  for (i = 0; i < uiLength; ++i) {
-    uiInputCRC ^= (uint32_t)(*pucDataBuff++) << 24;
-
-    for (ucMask = 1; ucMask; ucMask <<= 1) {
-      if (uiInputCRC & 0x80000000)
-        uiInputCRC = (uiInputCRC << 1) ^ uiPolynomial;
-      else
-        uiInputCRC <<= 1;
-    }
-  }
-
-  return uiInputCRC;
-}
-
 static uint32_t param_crc_calc(const BOOT_PARAM *param) {
   uint32_t crc = 0;
 
-  crc = uiCRC32_MPEG2(NULL, (uint8_t *)param, boot_param_crcdatalen * 4);
+  crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)param, boot_param_crcdatalen);
 
   return crc;
 }
@@ -194,7 +137,7 @@ inline __attribute__((always_inline)) void start_boot_app(uint32_t boot_addr) {
 void boot_test(void) {
   uint32_t crc = 0;
 
-  crc = uiCRC32_MPEG2(NULL, (uint8_t *)&boot_param_default, sizeof(BOOT_PARAM) - 4);
+  crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)&boot_param_default, boot_param_crcdatalen);
   printf("0x%08lx\n", crc);
 
   return;

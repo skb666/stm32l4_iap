@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "iwdg.h"
 #include "usart.h"
 #include "gpio.h"
@@ -97,6 +98,7 @@ int main(void)
   MX_GPIO_Init();
   MX_IWDG_Init();
   MX_LPUART1_UART_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   //boot_test();
 
@@ -121,6 +123,7 @@ int main(void)
   LL_GPIO_DeInit(GPIOC);
   LL_GPIO_DeInit(GPIOD);
   LL_GPIO_DeInit(GPIOH);
+  HAL_CRC_DeInit(&hcrc);
   HAL_DeInit();
   LL_IWDG_ReloadCounter(IWDG);
 

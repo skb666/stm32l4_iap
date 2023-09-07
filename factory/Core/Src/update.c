@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 
+#include "crc.h"
 #include "common.h"
 #include "main.h"
 
@@ -31,7 +32,7 @@ static IAP_UP iap_up = {
 
 const uint32_t boot_param_size32 = sizeof(BOOT_PARAM) / 4 + (sizeof(BOOT_PARAM) % 4 ? 1 : 0);
 const uint32_t boot_param_size64 = sizeof(BOOT_PARAM) / 8 + (sizeof(BOOT_PARAM) % 8 ? 1 : 0);
-const uint32_t boot_param_crcdatalen = boot_param_size32 - 1;
+const uint32_t boot_param_crcdatalen = 4 * (boot_param_size32 - 1);
 const BOOT_PARAM boot_param_default = {
     .app_boot = BOOT_FACTORY,
     .app_status = STATUS_ERROR,
@@ -39,68 +40,22 @@ const BOOT_PARAM boot_param_default = {
     .crc_val = 0xc704dd7b,
 };
 
-/* 常用CRC32校验算法 */
-static uint32_t uiReflect(uint32_t uiData, uint8_t ucLength) {
-  uint32_t uiMask = 1 << (ucLength - 1), uiMaskRef = 1, uiDataReturn = 0;
+static inline void crc_reset(CRC_HandleTypeDef *hcrc) {
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_BUSY;
 
-  for (; uiMask; uiMask >>= 1) {
-    if (uiData & uiMask)
-      uiDataReturn |= uiMaskRef;
+  /* Reset CRC Calculation Unit (hcrc->Instance->INIT is
+  *  written in hcrc->Instance->DR) */
+  __HAL_CRC_DR_RESET(hcrc);
 
-    uiMaskRef <<= 1;
-  }
-
-  return uiDataReturn;
-}
-
-uint32_t uiCRC32(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
-  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
-  uint8_t ucMask = 0;
-
-  if (puiInitCRC != NULL)
-    uiInputCRC = *puiInitCRC;
-
-  uiPolynomial = uiReflect(uiPolynomial, 32);
-
-  for (i = 0; i < uiLength; ++i) {
-    uiInputCRC ^= *pucDataBuff++;
-
-    for (ucMask = 1; ucMask; ucMask <<= 1) {
-      if (uiInputCRC & 1)
-        uiInputCRC = (uiInputCRC >> 1) ^ uiPolynomial;
-      else
-        uiInputCRC >>= 1;
-    }
-  }
-
-  return ~uiInputCRC;
-}
-/* CRC32-MPEG2.0校验算法 */
-uint32_t uiCRC32_MPEG2(uint32_t *puiInitCRC, uint8_t *pucDataBuff, uint32_t uiLength) {
-  uint32_t uiPolynomial = 0x04C11DB7, uiInputCRC = 0xFFFFFFFF, i = 0;
-  uint8_t ucMask = 0;
-
-  if (puiInitCRC != NULL)
-    uiInputCRC = *puiInitCRC;
-
-  for (i = 0; i < uiLength; ++i) {
-    uiInputCRC ^= (uint32_t)(*pucDataBuff++) << 24;
-
-    for (ucMask = 1; ucMask; ucMask <<= 1) {
-      if (uiInputCRC & 0x80000000)
-        uiInputCRC = (uiInputCRC << 1) ^ uiPolynomial;
-      else
-        uiInputCRC <<= 1;
-    }
-  }
-
-  return uiInputCRC;
+  /* Change CRC peripheral state */
+  hcrc->State = HAL_CRC_STATE_READY;
 }
 
 static uint32_t param_crc_calc(const BOOT_PARAM *param) {
   uint32_t crc = 0;
 
-  crc = uiCRC32_MPEG2(NULL, (uint8_t *)param, boot_param_crcdatalen * 4);
+  crc = HAL_CRC_Calculate(&hcrc, (uint32_t *)param, boot_param_crcdatalen);
 
   return crc;
 }
@@ -239,6 +194,7 @@ void boot_param_check_upgrade(void) {
 
 void iap_update(frame_parse_t *frame) {
   static BOOT_PARAM param;
+  static uint32_t crc_acc = 0xFFFFFFFF;
 
   if (!iap_up.enabled) {
     uart_printf("cannot upgrade for now!\n");
@@ -261,6 +217,7 @@ void iap_update(frame_parse_t *frame) {
         if (iap_up.filesize % 8) {
           break;
         }
+        crc_reset(&hcrc);
         iap_up.crc = 0xFFFFFFFF;
         iap_up.addr = ADDR_BASE_APP;
         iap_up.wr_cnt = 0;
@@ -279,8 +236,9 @@ void iap_update(frame_parse_t *frame) {
         }
         disable_global_irq();
         STMFLASH_Write(iap_up.addr + iap_up.wr_cnt, (uint64_t *)(frame->data), frame->length / 8);
-        iap_up.crc = uiCRC32_MPEG2(&iap_up.crc, frame->data, frame->length);
+        crc_acc = HAL_CRC_Accumulate(&hcrc, (uint32_t *)frame->data, frame->length);
         enable_global_irq();
+        printf("0x%08lx\n", crc_acc);
         iap_up.wr_cnt += frame->length;
         uart_printf("trans ok\n");
       } else if (frame->id == FRAME_TYPE_END) {
@@ -289,7 +247,16 @@ void iap_update(frame_parse_t *frame) {
           uart_printf("upgrade failed\n");
           break;
         }
-        if ((frame->length != 4) || (iap_up.crc != *(uint32_t *)frame->data)) {
+        if (frame->length != 4) {
+          iap_up.status = IAP_START;
+          uart_printf("upgrade failed\n");
+          break;
+        }
+        iap_up.crc = *(uint32_t *)frame->data;
+        if (frame->byte_order) {
+          change_byte_order((uint8_t *)&iap_up.crc, sizeof(iap_up.crc));
+        }
+        if (iap_up.crc != crc_acc) {
           iap_up.status = IAP_START;
           uart_printf("upgrade failed\n");
           break;

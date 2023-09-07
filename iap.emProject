@@ -6,19 +6,17 @@
     arm_target_interface_type="SWD"
     gcc_c_language_standard="gnu11"
     gcc_cplusplus_language_standard="gnu++17"
+    gcc_optimization_level="Level 2 for size"
     linker_output_format="bin"
     speed="50000" />
   <configuration
     Name="Debug"
     c_preprocessor_definitions="DEBUG"
-    gcc_debugging_level="Level 3"
-    gcc_omit_frame_pointer="Yes"
-    gcc_optimization_level="None" />
+    gcc_debugging_level="Level 3" />
   <configuration
     Name="Release"
     c_preprocessor_definitions="NDEBUG"
     gcc_debugging_level="Level 2"
-    gcc_omit_frame_pointer="Yes"
     gcc_optimization_level="Level 2 for size" />
   <project Name="bootloader">
     <configuration
@@ -56,6 +54,7 @@
       target_reset_script="Reset();"
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
     <folder Name="Core">
+      <file file_name="../Core/Src/crc.c" />
       <file file_name="../Core/Src/gpio.c" />
       <file file_name="../Core/Src/iwdg.c" />
       <file file_name="../Core/Src/main.c" />
@@ -69,6 +68,8 @@
     <folder Name="Drivers">
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_cortex.c" />
+      <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc.c" />
+      <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc_ex.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma_ex.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_exti.c" />
@@ -139,6 +140,7 @@
       target_trace_initialize_script="EnableTrace(&quot;$(TraceInterfaceType)&quot;)" />
     <folder Name="Core">
       <file file_name="../Core/Src/common.c" />
+      <file file_name="../Core/Src/crc.c" />
       <file file_name="../Core/Src/device.c" />
       <file file_name="../Core/Src/dma.c" />
       <file file_name="../Core/Src/gpio.c" />
@@ -155,6 +157,8 @@
     <folder Name="Drivers">
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_cortex.c" />
+      <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc.c" />
+      <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc_ex.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma_ex.c" />
       <file file_name="../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_exti.c" />

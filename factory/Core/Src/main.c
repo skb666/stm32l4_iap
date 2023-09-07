@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "dma.h"
 #include "iwdg.h"
 #include "usart.h"
@@ -93,6 +94,7 @@ int main(void)
   MX_DMA_Init();
   MX_IWDG_Init();
   MX_LPUART1_UART_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
   uart_config();
   boot_param_check_upgrade();
